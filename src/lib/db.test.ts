@@ -1,0 +1,11 @@
+import 'fake-indexeddb/auto'
+import { it, expect } from 'vitest'
+import { dbFor, addTask, patchTask, removeTask, sync } from './db'
+const mock = (rows: any[]) => ({ from: () => { const q: any = { select() { return q }, in(_: string, ids: string[]) { q.f = (r: any) => ids.includes(r.id); return q }, is() { return q }, eq(_: string, v: string) { q.id = v; return q }, delete() { q.del = 1; return q },
+  upsert(r: any) { const i = rows.findIndex(x => x.id === r.id); const n = { ...r, updated_at: new Date(Date.now() + rows.length).toISOString() }; i < 0 ? rows.push(n) : (rows[i] = n); return Promise.resolve({ error: null }) },
+  then(res: any) { if (q.del) { const i = rows.findIndex(x => x.id === q.id); if (i >= 0) rows.splice(i, 1); return res({ error: null }) } return res({ data: rows.filter(q.f || (() => true)), error: null }) } }; return q } })
+const t = { title: 'a', priority: 'low' as const, due_at: null }
+it('offline create syncs once, no duplicates', async () => { const db = dbFor('u1'), rows: any[] = []; await addTask(db, t); await sync(db, 'u1', mock(rows)); await sync(db, 'u1', mock(rows)); expect(rows).toHaveLength(1); expect(await db.tasks.where('dirty').equals(1).count()).toBe(0) })
+it('remote deletion removes clean rows but keeps unsynced edits', async () => { const db = dbFor('u2'), rows: any[] = []; await addTask(db, t); await addTask(db, t); await sync(db, 'u2', mock(rows)); const [a, b] = await db.tasks.toArray(); rows.length = 0; await patchTask(db, b.id, { title: 'edit' }); await sync(db, 'u2', mock(rows)); expect(await db.tasks.get(a.id)).toBeUndefined(); expect(rows.map(r => r.title)).toEqual(['edit']) })
+it('local delete of synced task deletes remotely; conflicts counted, local wins', async () => { const db = dbFor('u3'), rows: any[] = []; await addTask(db, t); await sync(db, 'u3', mock(rows)); const x = (await db.tasks.toArray())[0]; rows[0].updated_at = '2999-01-01'; await patchTask(db, x.id, { title: 'mine' }); const r = await sync(db, 'u3', mock(rows)); expect(r.conflicts).toBe(1); expect(rows[0].title).toBe('mine'); await removeTask(db, (await db.tasks.get(x.id))!); await sync(db, 'u3', mock(rows)); expect(rows).toHaveLength(0); expect(await db.tasks.count()).toBe(0) })
+it('users are isolated', async () => { await addTask(dbFor('iso1'), t); expect(await dbFor('iso2').tasks.count()).toBe(0) })

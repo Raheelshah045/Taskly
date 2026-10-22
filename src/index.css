@@ -1,0 +1,16 @@
+@import "tailwindcss";
+:root{--bg:#eef3ff;--panel:rgba(255,255,255,.78);--card:rgba(255,255,255,.94);--ink:#0f172a;--mute:#475569;--line:#c7d2e6;--acc:#2563eb;--grad:linear-gradient(135deg,#2563eb,#7c3aed);--b1:#22d3ee;--b2:#a78bfa;--b3:#f9a8d4}
+@media (prefers-color-scheme:dark){:root{--bg:#0b1020;--panel:rgba(22,30,55,.8);--card:rgba(24,33,62,.95);--ink:#f1f5ff;--mute:#a9b6d3;--line:#33425f;--acc:#67e8f9;--b1:#0891b2;--b2:#6d28d9;--b3:#9d174d}}
+body{background:var(--bg);color:var(--ink);font-family:ui-rounded,"Segoe UI",system-ui,sans-serif;padding-top:env(safe-area-inset-top);min-height:100vh}
+body::before{content:"";position:fixed;inset:0;z-index:-1;background:radial-gradient(40vmax 40vmax at 10% 5%,var(--b1),transparent 60%),radial-gradient(40vmax 40vmax at 95% 20%,var(--b2),transparent 60%),radial-gradient(35vmax 35vmax at 40% 105%,var(--b3),transparent 60%);opacity:.45}
+.glass{background:var(--panel);backdrop-filter:blur(16px) saturate(1.4);-webkit-backdrop-filter:blur(16px) saturate(1.4);border:1px solid var(--line);box-shadow:0 8px 30px rgba(30,41,90,.12)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;box-shadow:0 4px 16px rgba(30,41,90,.08);transition:transform .18s,box-shadow .18s}
+li.card:hover{transform:translateY(-1px);box-shadow:0 8px 22px rgba(30,41,90,.14)}
+.btn{background:var(--grad);color:#fff;border-radius:12px;padding:.55rem 1rem;font-weight:600;box-shadow:0 4px 14px rgba(124,58,237,.35);transition:transform .15s,filter .15s}
+.btn:hover{filter:brightness(1.08)}.btn:active{transform:scale(.97)}
+.inp{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:.55rem .75rem;width:100%;color:var(--ink)}
+.badge{display:inline-flex;align-items:center;gap:.35rem;padding:.15rem .6rem;border-radius:999px;font-size:.75rem;font-weight:600;border:1px solid var(--line);background:var(--card)}
+.dot{width:.5rem;height:.5rem;border-radius:50%}
+.pop{animation:pop .25s ease-out}@keyframes pop{from{opacity:0;transform:translateY(6px)}}
+:focus-visible{outline:3px solid var(--acc);outline-offset:2px}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}

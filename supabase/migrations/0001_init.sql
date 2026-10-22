@@ -1,0 +1,15 @@
+create extension if not exists pgcrypto;
+create table public.profiles(id uuid primary key references auth.users on delete cascade,display_name text,timezone text not null default 'UTC',theme text not null default 'system' check(theme in('system','light','dark')),created_at timestamptz not null default now(),updated_at timestamptz not null default now());
+create table public.projects(id uuid primary key default gen_random_uuid(),user_id uuid not null references auth.users on delete cascade default auth.uid(),name text not null check(char_length(name) between 1 and 80),created_at timestamptz not null default now(),updated_at timestamptz not null default now(),unique(user_id,name));
+create table public.tasks(id uuid primary key default gen_random_uuid(),user_id uuid not null references auth.users on delete cascade default auth.uid(),project_id uuid references public.projects on delete set null,parent_id uuid references public.tasks on delete cascade,title text not null check(char_length(title) between 1 and 300),notes text,priority text not null default 'medium' check(priority in('low','medium','high','urgent')),status text not null default 'todo' check(status in('todo','in_progress','completed')),start_at timestamptz,due_at timestamptz,completed_at timestamptz,created_at timestamptz not null default now(),updated_at timestamptz not null default now(),check(start_at is null or due_at is null or start_at<=due_at));
+create index on public.tasks(user_id,status,due_at);create index on public.tasks(user_id,project_id);create index on public.tasks(parent_id);
+create function public.touch() returns trigger language plpgsql as $$ begin new.updated_at=now();return new;end $$;
+create trigger t1 before update on public.profiles for each row execute function public.touch();
+create trigger t2 before update on public.projects for each row execute function public.touch();
+create trigger t3 before update on public.tasks for each row execute function public.touch();
+create function public.new_user() returns trigger language plpgsql security definer set search_path=public as $$ begin insert into public.profiles(id) values(new.id);return new;end $$;
+create trigger on_signup after insert on auth.users for each row execute function public.new_user();
+alter table public.profiles enable row level security;alter table public.projects enable row level security;alter table public.tasks enable row level security;
+create policy own on public.profiles for all using(id=auth.uid()) with check(id=auth.uid());
+create policy own on public.projects for all using(user_id=auth.uid()) with check(user_id=auth.uid());
+create policy own on public.tasks for all using(user_id=auth.uid()) with check(user_id=auth.uid() and (project_id is null or exists(select 1 from public.projects p where p.id=project_id and p.user_id=auth.uid())));
