@@ -1,5 +1,22 @@
+# Dependencies and build output
+node_modules/
+dist/
+
+# Environment variables and secrets
 .env
 .env.*
 !.env.example
-node_modules/
-dist/
+.env.keys
+.env.local
+.env.*.local
+
+# Supabase local state
+.branches/
+.temp/
+supabase/.branches/
+supabase/.temp/
+
+# Local tooling
+.wrangler/
+.DS_Store
+Thumbs.db
