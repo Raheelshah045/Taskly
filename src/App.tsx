@@ -69,7 +69,8 @@ function Planner({ session }: { session: Session }) {
   const del = (t: Task) => { if (confirm(`Delete "${t.title}"?`)) mutate(() => removeTask(db, t)) }
   const saveEdit = () => { const t = editText.trim(); if (t && editId) mutate(() => patchTask(db, editId, { title: t })); setEditId(null) }
   const today = dayKey(new Date())
-  const nowMs = Date.now()
+  const [nowMs, setNowMs] = useState(() => Date.now())
+  useEffect(() => { const timer = setInterval(() => setNowMs(Date.now()), 30000); return () => clearInterval(timer) }, [])
   const isOverdue = (t: Task) => t.status !== 'completed' && !!t.due_at && new Date(t.due_at).getTime() < nowMs
   const shown = useMemo(() => tasks.filter(t => t.title.toLowerCase().includes(q.toLowerCase())).filter(t => {
     if (view === 'done') return t.status === 'completed'; if (t.status === 'completed') return false
@@ -77,7 +78,7 @@ function Planner({ session }: { session: Session }) {
     if (view === 'today') return !!t.due_at && dayKey(t.due_at) === today
     if (view === 'overdue') return !!t.due_at && new Date(t.due_at).getTime() < Date.now()
     return !!t.due_at && dayKey(t.due_at) > today
-  }).sort((a, b) => (a.due_at && b.due_at ? a.due_at.localeCompare(b.due_at) : 0) || PRI[b.priority] - PRI[a.priority]), [tasks, view, q, today])
+  }).sort((a, b) => (a.due_at && b.due_at ? a.due_at.localeCompare(b.due_at) : 0) || PRI[b.priority] - PRI[a.priority]), [tasks, view, q, today, nowMs])
   const open = tasks.filter(t => t.status !== 'completed'), overdue = open.filter(isOverdue).length
   const doneToday = tasks.filter(t => t.completed_at && dayKey(t.completed_at) === today).length, pending = tasks.filter(t => t.dirty).length
   const exportJson = () => { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(tasks.map(({ dirty, deleted, base, ...t }) => t), null, 2)], { type: 'application/json' })); a.download = 'tasks.json'; a.click() }
