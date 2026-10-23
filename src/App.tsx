@@ -69,14 +69,16 @@ function Planner({ session }: { session: Session }) {
   const del = (t: Task) => { if (confirm(`Delete "${t.title}"?`)) mutate(() => removeTask(db, t)) }
   const saveEdit = () => { const t = editText.trim(); if (t && editId) mutate(() => patchTask(db, editId, { title: t })); setEditId(null) }
   const today = dayKey(new Date())
+  const nowMs = Date.now()
+  const isOverdue = (t: Task) => t.status !== 'completed' && !!t.due_at && new Date(t.due_at).getTime() < nowMs
   const shown = useMemo(() => tasks.filter(t => t.title.toLowerCase().includes(q.toLowerCase())).filter(t => {
     if (view === 'done') return t.status === 'completed'; if (t.status === 'completed') return false
     if (view === 'inbox') return !t.due_at
     if (view === 'today') return !!t.due_at && dayKey(t.due_at) === today
-    if (view === 'overdue') return !!t.due_at && dayKey(t.due_at) < today
+    if (view === 'overdue') return !!t.due_at && new Date(t.due_at).getTime() < Date.now()
     return !!t.due_at && dayKey(t.due_at) > today
   }).sort((a, b) => (a.due_at && b.due_at ? a.due_at.localeCompare(b.due_at) : 0) || PRI[b.priority] - PRI[a.priority]), [tasks, view, q, today])
-  const open = tasks.filter(t => t.status !== 'completed'), overdue = open.filter(t => t.due_at && dayKey(t.due_at) < today).length
+  const open = tasks.filter(t => t.status !== 'completed'), overdue = open.filter(isOverdue).length
   const doneToday = tasks.filter(t => t.completed_at && dayKey(t.completed_at) === today).length, pending = tasks.filter(t => t.dirty).length
   const exportJson = () => { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(tasks.map(({ dirty, deleted, base, ...t }) => t), null, 2)], { type: 'application/json' })); a.download = 'tasks.json'; a.click() }
   const st = !online ? ['Offline', '#b45309'] : syncing ? ['Syncing…', '#2563eb'] : pending ? [`${pending} pending`, '#7c3aed'] : ['Synced', '#047857']
@@ -112,7 +114,7 @@ function Planner({ session }: { session: Session }) {
           <div className="flex-1 min-w-0">{editId === t.id
             ? <input className="inp" autoFocus aria-label="Edit title" value={editText} onChange={e => setEditText(e.target.value)} onKeyDown={e => e.key === 'Enter' ? saveEdit() : e.key === 'Escape' && setEditId(null)} />
             : <p className={t.status === 'completed' ? 'line-through opacity-70' : ''}>{t.title}</p>}
-            <p className="text-xs mt-0.5" style={{color:'var(--mute)'}}>{t.priority}{t.due_at && ` · ${new Date(t.due_at).toLocaleString([], { timeZone: tz, dateStyle: 'medium', timeStyle: 'short' })}`}{t.reminders?.length ? ` · 🔔 ${t.reminders.map(lab).join(', ')}` : ''}{t.dirty ? ' · not synced' : ''}</p></div>
+            <p className="text-xs mt-0.5" style={{color:'var(--mute)'}}>{t.priority}{t.due_at && ` · ${new Date(t.due_at).toLocaleString([], { timeZone: tz, dateStyle: 'medium', timeStyle: 'short' })`}{isOverdue(t) && <span className="ml-2 font-semibold" style={{ color: '#be123c' }}>· OVERDUE</span>}{t.reminders?.length ? ` · 🔔 ${t.reminders.map(lab).join(', ')}` : ''}{t.dirty ? ' · not synced' : ''}</p></div>
           {editId === t.id ? <button onClick={saveEdit} aria-label="Save title"><Check size={18} /></button> : <button onClick={() => { setEditId(t.id); setEditText(t.title) }} aria-label="Edit task"><Pencil size={18} /></button>}
           <button onClick={() => del(t)} aria-label="Delete task"><Trash2 size={18} /></button></li>)}</ul>}
     </main></div>
