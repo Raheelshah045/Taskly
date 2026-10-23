@@ -7,3 +7,6 @@ self.addEventListener('fetch',e=>{const r=e.request,u=new URL(r.url);
  if(r.method!=='GET'||u.origin!==location.origin)return;
  if(r.mode==='navigate'){e.respondWith(fetch(r).catch(()=>caches.match('/').then(x=>x||caches.match('/offline.html'))));return}
  e.respondWith(caches.match(r).then(h=>h||fetch(r).then(res=>{if(res.ok){const cp=res.clone();caches.open(C).then(c=>c.put(r,cp))}return res})))});
+self.addEventListener('push',e=>{let d={title:'Taskly',body:''};try{d=e.data.json()}catch{}
+ e.waitUntil(self.registration.showNotification(d.title,{body:d.body,tag:d.tag,icon:'/icon-192.png',badge:'/icon-192.png'}))});
+self.addEventListener('notificationclick',e=>{e.notification.close();e.waitUntil(clients.matchAll({type:'window',includeUncontrolled:true}).then(l=>l.length?l[0].focus():clients.openWindow('/')))});
