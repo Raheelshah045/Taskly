@@ -1,6 +1,6 @@
 import Dexie, { type Table } from 'dexie'
 export type Task = { id: string; title: string; priority: 'low'|'medium'|'high'|'urgent'; status: 'todo'|'in_progress'|'completed'; due_at: string|null; completed_at: string|null; created_at: string; updated_at: string; reminders: number[]; dirty: 0|1; deleted: 0|1; base: string|null }
-class DB extends Dexie { tasks!: Table<Task, string>; constructor(uid: string) { super('taskly-' + uid); this.version(1).stores({ tasks: 'id,dirty,deleted' }) } }
+class DB extends Dexie { tasks!: Table<Task, string>; fired!: Table<{ key: string; at: number }, string>; constructor(uid: string) { super('taskly-' + uid); this.version(1).stores({ tasks: 'id,dirty,deleted' }); this.version(2).stores({ tasks: 'id,dirty,deleted', fired: 'key,at' }) } }
 const dbs: Record<string, DB> = {}
 // One IndexedDB database per user id: accounts on a shared device never mix.
 export const dbFor = (uid: string) => (dbs[uid] ??= new DB(uid))

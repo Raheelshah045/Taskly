@@ -17,7 +17,8 @@ import {
   Bell,
 } from 'lucide-react'
 import { supabase, configured } from './lib/supabase'
-import { enablePush, disablePush, pushState } from './lib/push'
+import { enablePush, disablePush, pushState, refreshPush } from './lib/push'
+import { fireDueReminders, showLocalNotification } from './lib/reminders'
 import {
   dbFor,
   addTask,
@@ -273,6 +274,10 @@ function Planner({ session }: { session: Session }) {
   const [online, setOnline] = useState(navigator.onLine)
   const [syncing, setSyncing] = useState(false)
   const [conf, setConf] = useState(0)
+  const [syncFailed, setSyncFailed] = useState(false)
+  const fails = useRef(0)
+  const nextTry = useRef(0)
+  const [banner, setBanner] = useState<string[]>([])
 
   const [name, setName] = useState(
     localStorage.getItem('taskly-name-' + uid) || '',
@@ -290,7 +295,7 @@ function Planner({ session }: { session: Session }) {
   const [nowMs, setNowMs] = useState(() => Date.now())
 
   useEffect(() => {
-    pushState().then(setPs)
+    refreshPush().catch(() => {}).then(() => pushState().then(setPs))
 
     if (navigator.onLine) {
       supabase
@@ -379,8 +384,9 @@ function Planner({ session }: { session: Session }) {
     setLoading(false)
   }, [db])
 
-  const doSync = useCallback(async () => {
+  const doSync = useCallback(async (force = false) => {
     if (!navigator.onLine) return
+    if (!force && Date.now() < nextTry.current) return // exponential backoff after failures
 
     setSyncing(true)
 
@@ -389,13 +395,19 @@ function Planner({ session }: { session: Session }) {
     setSyncing(false)
 
     if (r.error) {
+      fails.current++
+      nextTry.current = Date.now() + Math.min(2 ** fails.current * 2000, 300000)
+      setSyncFailed(true)
       setErr(
-        'Sync failed: ' +
-          r.error +
-          '. Your changes are saved on this device and will retry.',
+        /jwt|token|expired|not authenticated/i.test(r.error)
+          ? 'Your session expired. Sign in again; your changes are kept on this device and will sync afterwards.'
+          : 'Sync failed: ' + r.error + '. Your changes are saved on this device; retrying automatically.',
       )
     } else {
       setErr('')
+      fails.current = 0
+      nextTry.current = 0
+      setSyncFailed(false)
 
       if (r.conflicts) {
         setConf((c) => c + r.conflicts)
@@ -409,12 +421,24 @@ function Planner({ session }: { session: Session }) {
   syncRef.current = doSync
 
   useEffect(() => {
+    const check = () =>
+      fireDueReminders(db, Date.now(), showLocalNotification)
+        .then((f) => { if (f.length) setBanner((b) => [...f.map((x) => x.title + ' — ' + x.body), ...b].slice(0, 3)) })
+        .catch(() => {})
+    const vis = () => { if (document.visibilityState === 'visible') { void check(); void syncRef.current(true) } }
+    void check()
+    const id = setInterval(check, 10000)
+    document.addEventListener('visibilitychange', vis)
+    return () => { clearInterval(id); document.removeEventListener('visibilitychange', vis) }
+  }, [db])
+
+  useEffect(() => {
     reload()
     syncRef.current()
 
     const on = () => {
       setOnline(true)
-      syncRef.current()
+      void syncRef.current(true)
     }
 
     const off = () => setOnline(false)
@@ -434,7 +458,7 @@ function Planner({ session }: { session: Session }) {
     try {
       await fn()
       await reload()
-      void doSync()
+      void doSync(true)
     } catch (e: unknown) {
       setErr(e instanceof Error ? e.message : String(e))
     }
@@ -565,7 +589,9 @@ function Planner({ session }: { session: Session }) {
 
   const st = !online
     ? ['Offline', '#b45309']
-    : syncing
+    : syncFailed
+      ? ['Sync failed · retrying', '#be123c']
+      : syncing
       ? ['Syncing…', '#2563eb']
       : pending
         ? [`${pending} pending`, '#7c3aed']
@@ -706,6 +732,13 @@ function Planner({ session }: { session: Session }) {
             />
             <button className="btn">Save</button>
           </form>
+        )}
+
+        {banner.length > 0 && (
+          <div role="status" className="card p-3 mb-3 text-sm">
+            {banner.map((b, i) => (<p key={i}>🔔 {b}</p>))}
+            <button className="underline" onClick={() => setBanner([])}>Dismiss</button>
+          </div>
         )}
 
         {!online && (
