@@ -1,0 +1,11 @@
+
+{
+  "deno.enablePaths": [
+    "./supabase/functions"
+  ],
+  "deno.path": "C:\\Users\\HP\\.deno\\bin\\deno.exe",
+  "deno.lint": true,
+  "deno.disablePaths": [
+    "./supabase/functions/send-reminders/core.test.ts"
+  ]
+}

@@ -1,27 +1,64 @@
+
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import webpush from 'npm:web-push@3.6.7'
-// Called every minute by pg_cron. Protected by a shared secret (deploy with --no-verify-jwt).
+import { processDue } from './core.ts'
+
+const json = (b: unknown, status = 200) =>
+  new Response(JSON.stringify(b), {
+    status,
+    headers: { 'content-type': 'application/json' },
+  })
+
 Deno.serve(async (req) => {
-  if (req.headers.get('x-cron-secret') !== Deno.env.get('CRON_SECRET')) return new Response('forbidden', { status: 403 })
-  const sb = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!)
-  webpush.setVapidDetails(Deno.env.get('VAPID_SUBJECT')!, Deno.env.get('VAPID_PUBLIC_KEY')!, Deno.env.get('VAPID_PRIVATE_KEY')!)
-  const { data: due, error } = await sb.rpc('due_reminders'); if (error) return new Response(error.message, { status: 500 })
-  let sent = 0
-  for (const r of due ?? []) {
-    // Do not consume a reminder when the user has not enabled notifications on any device.
-    const { data: subs, error: subError } = await sb.from('push_subscriptions').select('id,endpoint,p256dh,auth').eq('user_id', r.user_id)
-    if (subError || !subs?.length) continue
-    // Claim only after confirming a recipient exists. The primary key prevents duplicate sends.
-    const { error: claim } = await sb.from('reminder_log').insert({ task_id: r.task_id, offset_min: r.offset_min, due_at: r.due_at }); if (claim) continue
-    const body = r.offset_min ? `Due in ${r.offset_min >= 60 && r.offset_min % 60 === 0 ? r.offset_min / 60 + ' h' : r.offset_min + ' min'}` : 'Due now'
-    for (const s of subs) {
-      try { await webpush.sendNotification({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } }, JSON.stringify({ title: r.title, body, tag: `${r.task_id}-${r.offset_min}` }), { TTL: 3600 }); sent++ }
-      catch (e: any) {
-        if (e.statusCode === 404 || e.statusCode === 410) await sb.from('push_subscriptions').delete().eq('id', s.id)
-        // A failed send is counted in the response logs; expired subscriptions are removed above.
-        console.error('Push delivery failed', { task_id: r.task_id, statusCode: e?.statusCode, message: e?.message })
-      }
-    }
+  const secret = Deno.env.get('CRON_SECRET')
+  if (!secret || req.headers.get('x-cron-secret') !== secret) {
+    return new Response('forbidden', { status: 403 })
   }
-  return new Response(JSON.stringify({ due: due?.length ?? 0, sent }))
+
+  const missing = [
+    'SUPABASE_URL',
+    'SUPABASE_SERVICE_ROLE_KEY',
+    'VAPID_SUBJECT',
+    'VAPID_PUBLIC_KEY',
+    'VAPID_PRIVATE_KEY',
+  ].filter((k) => !Deno.env.get(k))
+
+  if (missing.length) {
+    return json({ error: 'missing secrets: ' + missing.join(', ') }, 500)
+  }
+
+  try {
+    webpush.setVapidDetails(
+      Deno.env.get('VAPID_SUBJECT')!,
+      Deno.env.get('VAPID_PUBLIC_KEY')!,
+      Deno.env.get('VAPID_PRIVATE_KEY')!,
+    )
+  } catch (e) {
+    return json({
+      error: 'invalid VAPID configuration: ' + (e as Error).message,
+    }, 500)
+  }
+
+  const sb = createClient(
+    Deno.env.get('SUPABASE_URL')!,
+    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
+  )
+
+  try {
+    return json(
+      await processDue({
+        sb,
+        send: (sub, payload) =>
+          webpush.sendNotification(sub, payload, {
+            TTL: 3600,
+            urgency: 'high',
+          }),
+        log: (event, meta) =>
+          console.error(event, JSON.stringify(meta)),
+      }),
+    )
+  } catch (e) {
+    console.error('run_failed', (e as Error).message)
+    return json({ error: (e as Error).message }, 500)
+  }
 })
