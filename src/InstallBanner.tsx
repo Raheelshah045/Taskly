@@ -55,7 +55,7 @@ export default function InstallBanner() {
   }
 
   return (
-    <aside className="fixed inset-x-3 bottom-3 z-50 mx-auto max-w-xl" aria-label="Install Taskly">
+    <aside className="fixed inset-x-3 bottom-[5.5rem] md:bottom-4 z-50 mx-auto max-w-xl" aria-label="Install Taskly">
       <div className="glass rounded-2xl p-3 sm:p-4">
         <div className="flex items-center gap-3">
           <div className="grid size-11 shrink-0 place-items-center rounded-xl text-white" style={{ background: 'var(--grad)' }}>
