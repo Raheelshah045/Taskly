@@ -18,6 +18,7 @@ import {
 } from 'lucide-react'
 import { supabase, configured } from './lib/supabase'
 import { enablePush, disablePush, pushState, refreshPush } from './lib/push'
+import { isNative, nativeState, enableNative, syncNativeReminders, cancelAllNative } from './lib/native'
 import { fireDueReminders, showLocalNotification } from './lib/reminders'
 import {
   dbFor,
@@ -47,6 +48,8 @@ const PCOL = {
   low: '#0d9488',
 }
 
+// Email links must open the public web app, not the Android WebView origin (https://localhost).
+const webOrigin = (import.meta.env.VITE_PUBLIC_WEB_URL as string | undefined) || location.origin
 const tz = Intl.DateTimeFormat().resolvedOptions().timeZone
 const PRESETS = [0, 5, 15, 30, 60, 1440]
 
@@ -92,12 +95,12 @@ function Auth() {
               email,
               password: pw,
               options: {
-                emailRedirectTo: location.origin,
+                emailRedirectTo: webOrigin,
                 data: { full_name: name.trim() },
               },
             })
           : await supabase.auth.resetPasswordForEmail(email, {
-              redirectTo: location.origin,
+              redirectTo: webOrigin,
             })
 
     setBusy(false)
@@ -295,7 +298,7 @@ function Planner({ session }: { session: Session }) {
   const [nowMs, setNowMs] = useState(() => Date.now())
 
   useEffect(() => {
-    refreshPush().catch(() => {}).then(() => pushState().then(setPs))
+    (isNative ? Promise.resolve() : refreshPush().catch(() => {})).then(() => (isNative ? nativeState() : pushState()).then(setPs))
 
     if (navigator.onLine) {
       supabase
@@ -338,7 +341,10 @@ function Planner({ session }: { session: Session }) {
 
   const togglePush = async () => {
     try {
-      if (ps === 'on') {
+      if (isNative) {
+        await enableNative()
+        await syncNativeReminders((await db.tasks.toArray()).filter((t) => !t.deleted))
+      } else if (ps === 'on') {
         await disablePush()
       } else {
         await enablePush()
@@ -349,7 +355,7 @@ function Planner({ session }: { session: Session }) {
       setErr(e instanceof Error ? e.message : String(e))
     }
 
-    setPs(await pushState())
+    setPs(isNative ? await nativeState() : await pushState())
   }
 
   const toggleRem = (m: number) =>
@@ -422,15 +428,19 @@ function Planner({ session }: { session: Session }) {
 
   useEffect(() => {
     const check = () =>
-      fireDueReminders(db, Date.now(), showLocalNotification)
+      (isNative ? Promise.resolve<{ title: string; body: string }[]>([]) : fireDueReminders(db, Date.now(), showLocalNotification))
         .then((f) => { if (f.length) setBanner((b) => [...f.map((x) => x.title + ' — ' + x.body), ...b].slice(0, 3)) })
         .catch(() => {})
-    const vis = () => { if (document.visibilityState === 'visible') { void check(); void syncRef.current(true) } }
+    const vis = () => { if (document.visibilityState === 'visible') { void check(); void syncRef.current(true); if (isNative) void db.tasks.toArray().then((ts) => syncNativeReminders(ts.filter((t) => !t.deleted))).catch(() => {}) } }
     void check()
     const id = setInterval(check, 10000)
     document.addEventListener('visibilitychange', vis)
     return () => { clearInterval(id); document.removeEventListener('visibilitychange', vis) }
   }, [db])
+
+  useEffect(() => {
+    if (isNative) void syncNativeReminders(tasks).catch((e) => console.warn('[taskly:native-reminders] sync failed', e))
+  }, [tasks])
 
   useEffect(() => {
     reload()
@@ -658,7 +668,7 @@ function Planner({ session }: { session: Session }) {
 
         <button
           onClick={async () => {
-            await disablePush().catch(() => {})
+            await (isNative ? cancelAllNative() : disablePush()).catch(() => {})
             await supabase.auth.signOut()
           }}
           className={nb}
@@ -702,7 +712,7 @@ function Planner({ session }: { session: Session }) {
               className="badge"
               style={{ color: '#b45309', borderColor: '#b45309' }}
             >
-              Notifications blocked in browser settings
+              Notifications blocked in {isNative ? 'Android app' : 'browser'} settings
             </span>
           ) : (
             <button
@@ -711,7 +721,7 @@ function Planner({ session }: { session: Session }) {
               aria-pressed={ps === 'on'}
             >
               <Bell size={14} />
-              {ps === 'on' ? 'Reminders on' : 'Enable reminders'}
+              {ps === 'on' ? 'Reminders on' : ps === 'inexact' ? 'Allow exact alarms' : 'Enable reminders'}
             </button>
           )}
         </header>

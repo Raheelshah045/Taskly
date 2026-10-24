@@ -1,1 +1,37 @@
-{"name":"taskplanner","private":true,"version":"0.1.0","type":"module","scripts":{"dev":"vite","build":"tsc --noEmit && vite build","preview":"vite preview","test":"vitest run"},"dependencies":{"@supabase/supabase-js":"^2.118.0","dexie":"^4.4.6","lucide-react":"^1.61.0","react":"^19.3.1","react-dom":"^19.3.1"},"devDependencies":{"@tailwindcss/vite":"^4.3.3","@types/react":"^19.3.0","@types/react-dom":"^19.3.0","@vitejs/plugin-react":"^6.1.2","fake-indexeddb":"^6.2.6","supabase":"^2.122.0","tailwindcss":"^4.3.3","typescript":"^7.0.2","vite":"^8.3.5","vitest":"^5.0.5"}}
+﻿{
+    "name":  "taskplanner",
+    "private":  true,
+    "version":  "0.1.0",
+    "type":  "module",
+    "scripts":  {
+                    "dev":  "vite",
+                    "build":  "tsc --noEmit \u0026\u0026 vite build",
+                    "preview":  "vite preview",
+                    "test":  "vitest run"
+                },
+    "dependencies":  {
+                         "@capacitor/android":  "^8.5.3",
+                         "@capacitor/core":  "^8.5.3",
+                         "@capacitor/local-notifications":  "^8.3.1",
+                         "@capacitor/splash-screen":  "^8.0.2",
+                         "@capacitor/status-bar":  "^8.0.4",
+                         "@supabase/supabase-js":  "^2.118.0",
+                         "dexie":  "^4.4.6",
+                         "lucide-react":  "^1.61.0",
+                         "react":  "^19.3.1",
+                         "react-dom":  "^19.3.1"
+                     },
+    "devDependencies":  {
+                            "@capacitor/cli":  "^8.5.3",
+                            "@tailwindcss/vite":  "^4.3.3",
+                            "@types/react":  "^19.3.0",
+                            "@types/react-dom":  "^19.3.0",
+                            "@vitejs/plugin-react":  "^6.1.2",
+                            "fake-indexeddb":  "^6.2.6",
+                            "supabase":  "^2.122.0",
+                            "tailwindcss":  "^4.3.3",
+                            "typescript":  "^7.0.2",
+                            "vite":  "^8.3.5",
+                            "vitest":  "^5.0.5"
+                        }
+}

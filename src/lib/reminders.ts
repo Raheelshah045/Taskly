@@ -17,7 +17,8 @@ export async function fireDueReminders(db: LocalDB, now: number, show: (title: s
       const key = `${t.id}|${m}|${t.due_at}`
       try { await db.fired.add({ key, at: now }) } catch { continue } // already fired
       const body = bodyFor(m)
-      await show(t.title, body, `${t.id}-${m}`).catch(() => false)
+      const shown = await show(t.title, body, `${t.id}-${m}`).catch((e) => { console.warn('[taskly:reminders] notification failed', e?.message); return false })
+      console.info('[taskly:reminders] fired', { task: t.id, offset: m, systemNotification: shown }) // shown=false: permission missing, in-app banner only
       out.push({ title: t.title, body })
     }
   }

@@ -10,8 +10,10 @@ export async function pushState(): Promise<'unsupported'|'denied'|'on'|'off'|'st
   return KEY && keyMatches(sub.options.applicationServerKey, b64(KEY)) ? 'on' : 'stale' // 'stale' = subscribed with a different VAPID key
 }
 export async function enablePush() {
-  if (!KEY) throw new Error('Push is not configured (missing VITE_VAPID_PUBLIC_KEY).')
+  // Ask for permission first and independently of push: in-app/local reminders need it even offline or without VAPID.
   if (await Notification.requestPermission() !== 'granted') throw new Error('Notification permission was not granted.')
+  if (!KEY) throw new Error('Notifications are allowed, but push is not configured (missing VITE_VAPID_PUBLIC_KEY).')
+  if (!navigator.onLine) throw new Error('Notifications are allowed. Push registration needs a connection and completes automatically next time you open Taskly online.')
   const reg = await navigator.serviceWorker.ready
   let sub = await reg.pushManager.getSubscription()
   if (sub && !keyMatches(sub.options.applicationServerKey, b64(KEY))) { // VAPID key changed: drop the old server record and subscription, then resubscribe
@@ -25,4 +27,4 @@ export async function disablePush() {
   if (sub) { await supabase.rpc('unregister_push', { p_endpoint: sub.endpoint }); await sub.unsubscribe() }
 }
 // Silent self-heal on launch (no permission prompt): replaces stale subscriptions and re-registers the current one.
-export async function refreshPush() { const s = await pushState(); if (s === 'stale' || s === 'on') await enablePush() }
+export async function refreshPush() { const s = await pushState(); if (s !== 'unsupported' && Notification.permission === 'granted' && navigator.onLine) await enablePush() }

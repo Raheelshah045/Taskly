@@ -49,3 +49,16 @@ Thumbs.db
 # Test artifacts
 playwright-report/
 test-results/
+
+# Android generated files
+.gradle/
+**/.gradle/
+local.properties
+**/local.properties
+
+# Android generated files
+android/android/
+android/app/src/androidTest/
+android/app/src/main/assets/
+android/capacitor-cordova-android-plugins/
+android/gradle/wrapper/gradle-wrapper copy.properties
