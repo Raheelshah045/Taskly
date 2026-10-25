@@ -11,11 +11,15 @@ export function keyMatches(a: ArrayBuffer | null | undefined, b: Uint8Array) {
 
 // VAPID keys use base64url encoding and must decode to a 65-byte uncompressed P-256 public key.
 function decodeVapidKey(value: string | undefined): Uint8Array {
-  if (!value || !/^[A-Za-z0-9_-]+$/.test(value)) {
+  // Cloudflare variables are sometimes pasted with quotes, whitespace, or standard
+  // Base64 padding. Accept those harmless formatting differences, but still validate
+  // the decoded value as an uncompressed P-256 public key.
+  const cleaned = value?.trim().replace(/^["']|["']$/g, '').replace(/\s+/g, '')
+  if (!cleaned || !/^[A-Za-z0-9_+/=-]+$/.test(cleaned)) {
     throw new Error('Invalid VAPID public key configuration.')
   }
   try {
-    const base64 = value.replace(/-/g, '+').replace(/_/g, '/')
+    const base64 = cleaned.replace(/-/g, '+').replace(/_/g, '/').replace(/=+$/, '')
     const decoded = Uint8Array.from(
       atob(base64 + '='.repeat((4 - base64.length % 4) % 4)),
       c => c.charCodeAt(0),
