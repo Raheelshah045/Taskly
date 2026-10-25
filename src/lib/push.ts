@@ -60,7 +60,10 @@ export async function enablePush() {
     await sub.unsubscribe()
     sub = null
   }
-  sub ??= await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey })
+  // Pass a standalone ArrayBuffer to satisfy strict DOM typings and avoid SharedArrayBuffer ambiguity.
+  const keyBuffer = new ArrayBuffer(applicationServerKey.byteLength)
+  new Uint8Array(keyBuffer).set(applicationServerKey)
+  sub ??= await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: keyBuffer })
   const j = sub.toJSON()
   const { error } = await supabase.rpc('register_push', {
     p_endpoint: j.endpoint,
