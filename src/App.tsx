@@ -409,7 +409,16 @@ function Planner({ session }: { session: Session }) {
 
     setSyncing(true)
 
-    const r = await sync(db, uid, supabase)
+    let r: Awaited<ReturnType<typeof sync>>
+    try {
+      r = await sync(db, uid, supabase)
+    } catch (error) {
+      console.error('[taskly:sync] Unexpected sync failure:', error)
+      setSyncing(false)
+      setSyncFailed(true)
+      await reload()
+      return
+    }
 
     setSyncing(false)
 
@@ -417,10 +426,12 @@ function Planner({ session }: { session: Session }) {
       fails.current++
       nextTry.current = Date.now() + Math.min(2 ** fails.current * 2000, 300000)
       setSyncFailed(true)
+      // Keep backend/SQL details out of the UI; show sync state in the status badge.
+      console.error('[taskly:sync] Sync failed:', r.error)
       setErr(
         /jwt|token|expired|not authenticated/i.test(r.error)
-          ? 'Your session expired. Sign in again; your changes are kept on this device and will sync afterwards.'
-          : 'Sync failed: ' + r.error + '. Your changes are saved on this device; retrying automatically.',
+          ? 'Your session may have expired. Sign in again when prompted; your local changes are kept on this device.'
+          : '',
       )
     } else {
       setErr('')
@@ -483,7 +494,8 @@ function Planner({ session }: { session: Session }) {
       await reload()
       void doSync(true)
     } catch (e: unknown) {
-      setErr(e instanceof Error ? e.message : String(e))
+      console.error('[taskly:task] Could not save task locally:', e)
+      setErr('Could not save this task on your device. Please try again.')
     }
   }
 
@@ -496,6 +508,10 @@ function Planner({ session }: { session: Session }) {
       setErr('Enter a task title.')
       return
     }
+    if (!due || Number.isNaN(new Date(due).getTime())) {
+      setErr('Choose a date and time for this task.')
+      return
+    }
 
     setErr('')
 
@@ -503,8 +519,8 @@ function Planner({ session }: { session: Session }) {
       addTask(db, {
         title: t,
         priority: pri,
-        due_at: due ? new Date(due).toISOString() : null,
-        reminders: due ? [...rem].sort((a, b) => a - b) : [],
+        due_at: new Date(due).toISOString(),
+        reminders: [...rem].sort((a, b) => a - b),
       }),
     )
 
@@ -787,6 +803,7 @@ function Planner({ session }: { session: Session }) {
         >
           <input
             className="inp"
+            required
             placeholder="Add a task"
             aria-label="Task title"
             value={title}
@@ -796,7 +813,8 @@ function Planner({ session }: { session: Session }) {
           <input
             className="inp"
             type="datetime-local"
-            aria-label="Due"
+            required
+            aria-label="Required date and time"
             value={due}
             onChange={(e) => setDue(e.target.value)}
           />
