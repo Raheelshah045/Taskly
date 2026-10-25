@@ -409,7 +409,16 @@ function Planner({ session }: { session: Session }) {
 
     setSyncing(true)
 
-    const r = await sync(db, uid, supabase)
+    let r: Awaited<ReturnType<typeof sync>>
+    try {
+      r = await sync(db, uid, supabase)
+    } catch (error) {
+      console.error('[taskly:sync] Unexpected sync failure:', error)
+      setSyncing(false)
+      setSyncFailed(true)
+      await reload()
+      return
+    }
 
     setSyncing(false)
 
