@@ -352,10 +352,23 @@ function Planner({ session }: { session: Session }) {
 
       setErr('')
     } catch (e: unknown) {
-      setErr(e instanceof Error ? e.message : String(e))
+      // Keep implementation/configuration details out of the user-facing UI.
+      console.error('[taskly:reminders] Could not finish enabling reminders:', e)
+      const message = e instanceof Error ? e.message : String(e)
+      setErr(
+        /VAPID|atob|base64|push.*config|applicationServerKey/i.test(message)
+          ? 'Device notifications are allowed, but background reminders are temporarily unavailable. Please try again later.'
+          : /permission/i.test(message)
+            ? 'Please allow notifications in your browser settings to enable reminders.'
+            : 'Reminders could not be fully enabled. Please check your connection and try again.',
+      )
     }
 
-    setPs(isNative ? await nativeState() : await pushState())
+    try {
+      setPs(isNative ? await nativeState() : await pushState())
+    } catch (e) {
+      console.error('[taskly:reminders] Could not refresh reminder status:', e)
+    }
   }
 
   const toggleRem = (m: number) =>
