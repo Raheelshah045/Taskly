@@ -15,8 +15,10 @@ function decodeVapidKey(value: string | undefined): Uint8Array {
   if (!cleaned) {
     throw new Error('VAPID public key is missing from this deployment.')
   }
-  if (!/^[A-Za-z0-9_+/=-]+$/.test(cleaned)) {
-    throw new Error('VAPID public key contains invalid characters. Use the public key only, without a label or other text.')
+  const invalidIndex = [...cleaned].findIndex(c => !/[A-Za-z0-9_+/=-]/.test(c))
+  if (invalidIndex !== -1) {
+    const code = cleaned.charCodeAt(invalidIndex)
+    throw new Error(`VAPID public key contains an unsupported character at position ${invalidIndex + 1} (character code ${code}); key value is not logged.`)
   }
 
   let decoded: Uint8Array
