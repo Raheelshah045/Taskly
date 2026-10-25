@@ -10,9 +10,8 @@ type InstallPromptEvent = Event & {
 export default function InstallBanner() {
   const [promptEvent, setPromptEvent] = useState<InstallPromptEvent | null>(null)
   const [helpOpen, setHelpOpen] = useState(false)
-  const [hidden, setHidden] = useState(() => {
-    try { return localStorage.getItem('taskly-install-dismissed') === '1' } catch { return false }
-  })
+  // Dismissal is session-only: the banner returns when the user opens the website again.
+  const [hidden, setHidden] = useState(false)
   const [installed, setInstalled] = useState(false)
 
   useEffect(() => {
@@ -43,15 +42,19 @@ export default function InstallBanner() {
       setHelpOpen(v => !v)
       return
     }
-    await promptEvent.prompt()
-    const choice = await promptEvent.userChoice
-    if (choice.outcome === 'accepted') setInstalled(true)
-    setPromptEvent(null)
+    try {
+      await promptEvent.prompt()
+      const choice = await promptEvent.userChoice
+      if (choice.outcome === 'accepted') setInstalled(true)
+    } catch {
+      setHelpOpen(true)
+    } finally {
+      setPromptEvent(null)
+    }
   }
 
   const dismiss = () => {
     setHidden(true)
-    try { localStorage.setItem('taskly-install-dismissed', '1') } catch {}
   }
 
   return (
