@@ -11,26 +11,32 @@ export function keyMatches(a: ArrayBuffer | null | undefined, b: Uint8Array) {
 
 // VAPID keys use base64url encoding and must decode to a 65-byte uncompressed P-256 public key.
 function decodeVapidKey(value: string | undefined): Uint8Array {
-  // Cloudflare variables are sometimes pasted with quotes, whitespace, or standard
-  // Base64 padding. Accept those harmless formatting differences, but still validate
-  // the decoded value as an uncompressed P-256 public key.
-  const cleaned = value?.trim().replace(/^["']|["']$/g, '').replace(/\s+/g, '')
-  if (!cleaned || !/^[A-Za-z0-9_+/=-]+$/.test(cleaned)) {
-    throw new Error('Invalid VAPID public key configuration.')
+  const cleaned = value?.trim().replace(/^["']|["']$/g, '').replace(/\\s+/g, '')
+  if (!cleaned) {
+    throw new Error('VAPID public key is missing from this deployment.')
   }
+  if (!/^[A-Za-z0-9_+/=-]+$/.test(cleaned)) {
+    throw new Error('VAPID public key contains invalid characters. Use the public key only, without a label or other text.')
+  }
+
+  let decoded: Uint8Array
   try {
     const base64 = cleaned.replace(/-/g, '+').replace(/_/g, '/').replace(/=+$/, '')
-    const decoded = Uint8Array.from(
+    decoded = Uint8Array.from(
       atob(base64 + '='.repeat((4 - base64.length % 4) % 4)),
       c => c.charCodeAt(0),
     )
-    if (decoded.length !== 65 || decoded[0] !== 4) {
-      throw new Error('Invalid VAPID public key length or format.')
-    }
-    return decoded
   } catch {
-    throw new Error('Invalid VAPID public key configuration.')
+    throw new Error('VAPID public key is not valid Base64/Base64URL.')
   }
+
+  if (decoded.length !== 65) {
+    throw new Error(`VAPID public key decoded to ${decoded.length} bytes; expected 65. Check that Cloudflare has the complete public key, not the private key.`)
+  }
+  if (decoded[0] !== 4) {
+    throw new Error('VAPID public key has an invalid format. Use the complete uncompressed P-256 public key.')
+  }
+  return decoded
 }
 
 export async function pushState(): Promise<'unsupported'|'denied'|'on'|'off'|'stale'> {
