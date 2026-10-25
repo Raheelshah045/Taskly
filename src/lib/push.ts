@@ -11,7 +11,7 @@ export function keyMatches(a: ArrayBuffer | null | undefined, b: Uint8Array) {
 
 // VAPID keys use base64url encoding and must decode to a 65-byte uncompressed P-256 public key.
 function decodeVapidKey(value: string | undefined): Uint8Array {
-  const cleaned = value?.trim().replace(/^["']|["']$/g, '').replace(/\\s+/g, '')
+  const cleaned = value?.trim().replace(/^["']|["']$/g, '').replace(/\s+/g, '')
   if (!cleaned) {
     throw new Error('VAPID public key is missing from this deployment.')
   }
